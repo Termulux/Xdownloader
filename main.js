@@ -1,10 +1,12 @@
 const repl = require("repl"),
   https = require("https"),
+  http = require("http"),
   fs = require("fs"),
   cd = require("child_process"),
   rl = repl.start();
-let pathName;
-let ffmpegInstalled = true;
+let pathName,
+  ffmpegInstalled = true,
+  protocol;
 cd.exec(`ffmpeg`, { encoding: "hex" }, (err, stdout, stderr) => {
   if (
     stderr &&
@@ -18,8 +20,8 @@ utilize outra plataforma preferida.
 `);
     ffmpegInstalled = false;
   }
-  
-start();
+
+  start();
 });
 
 function start() {
@@ -31,12 +33,13 @@ function start() {
 }
 
 function getHtmlPage(link) {
+  let parsedUrl = parseUrl(link);
   download(link).then((content) => {
     if (content.indexOf("Sorry, this URL is outdated.") !== -1) {
       console.log("\x1B[33mErro 301, redirecionando...\x1B[0m");
       newlink = content.slice(content.indexOf("Url") + 7);
       newlink = newlink.slice(0, newlink.indexOf(" "));
-      getHtmlPage("https://www.xvideos.com/" + newlink);
+      getHtmlPage(`${parsedUrl[0]}//${parsedUrl[1]}/${newlink}`);
     } else {
       getHlsServer(content);
     }
@@ -141,7 +144,7 @@ function concatTs(video) {
 function download(link, returnChunks) {
   return new Promise((resolve) => {
     let chunks = [];
-    https.get(link, (res) => {
+    protocol.get(link, (res) => {
       res.on("data", (data) => {
         chunks.push(data);
       });
@@ -156,4 +159,10 @@ function download(link, returnChunks) {
       });
     });
   });
+}
+
+function parseUrl(url) {
+  let splited = url.split(/\/+/);
+  splited[0] == "https:" ? (protocol = https) : (protocol = http);
+  return splited;
 }
