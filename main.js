@@ -4,27 +4,31 @@ const repl = require("repl"),
   cd = require("child_process"),
   rl = repl.start();
 let pathName;
+let ffmpegInstalled = true;
+cd.exec(`ffmpeg`, { encoding: "hex" }, (err, stdout, stderr) => {
+  if (
+    stderr &&
+    stderr ==
+      "2766666d70656727206ec66f2082207265636f6e68656369646f20636f6d6f20756d20636f6d616e646f20696e7465726e6f0d0a6f752065787465726e6f2c20756d2070726f6772616d61206f706572a076656c206f7520756d206172717569766f20656d206c6f7465732e0d0a"
+  ) {
+    console.log(`O programa ffmpeg, necessário para converter o arquivo.ts para arquivo.mp4, não foi encontrado em seu dispositivo.
+Caso seja necessária a conversão, acesse https://ffmpeg.org/download.html e siga as instruções de instalação ou
+utilize outra plataforma preferida.
+    
+`);
+    ffmpegInstalled = false;
+  }
+  
+start();
+});
 
 function start() {
   rl.question("Cole o link utilizando o botão direito do mouse> ", (link) => {
     pathName = link.slice(link.lastIndexOf("/") + 1);
-    fs.mkdir(pathName, {}, (e) => {
-      if (e) {
-        if (e.code == "EEXIST") {
-          console.log(
-            "\x1B[31mPasta para o download já encontrada, delete-a e tente novamente!\x1B[0m"
-          );
-          rl.close();
-        } else {
-          throw e;
-        }
-      } else {
-        getHtmlPage(link);
-      }
-    });
+    getHtmlPage(link);
+    rl.pause();
   });
 }
-start();
 
 function getHtmlPage(link) {
   download(link).then((content) => {
@@ -93,17 +97,16 @@ function getFrags(base, fragtxt) {
     }
   }
   console.log("\033[33mbaixando... 0%\033[0m");
-  let num = 0;
-  let query = false;
-  if(tsarr[0].indexOf("?")!==-1) query = true;
+  let num = 0,
+    query = false,
+    video = [];
+
+  if (tsarr[0].indexOf("?") !== -1) query = true;
   downloadLoop();
 
   function downloadLoop() {
     download(base + tsarr[num], true).then((ts) => {
-      fs.writeFileSync(
-        `./${pathName}/${query?tsarr[num].slice(0, tsarr[num].indexOf("?")):tsarr[num]}`,
-        ts
-      );
+      video.push(ts);
       ++num;
       console.log(
         "            \033[33m\033[1A" +
@@ -113,16 +116,26 @@ function getFrags(base, fragtxt) {
       if (tsarr[num]) {
         downloadLoop();
       } else {
-        concatTs();
+        concatTs(video);
       }
     });
   }
 }
 
-function concatTs() {
+function concatTs(video) {
   console.log("\x1B[32mDownload Finalizado!\x1B[0m");
-  
-  rl.close();
+
+  fs.writeFileSync(`./${pathName}.ts`, Buffer.concat(video));
+  if (ffmpegInstalled) {
+    cd.exec(
+      `ffmpeg -i ./${pathName}.ts -acodec copy -vcodec copy ./${pathName}.mp4`,
+      {},
+      (err, stdout, stderr) => {
+        fs.rmSync(`./${pathName}.ts`);
+      }
+    );
+  }
+  start();
 }
 
 function download(link, returnChunks) {
